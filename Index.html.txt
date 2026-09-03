@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>ตารางเวร & วันลาแพทย์ (Doctor Colors)</title>
+  
+  <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.11/index.global.min.js"></script>
+  <style>
+    :root {
+      --bg-dark: #121212;
+      --card-bg: #1e1e1e;
+      --text-main: #e0e0e0;
+      --border-color: #2c2c2c;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      overflow: hidden;
+    }
+
+    .app-container {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 6px;
+    }
+
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 4px 6px;
+      height: 45px;
+    }
+
+    .header-title {
+      font-size: 0.95rem;
+      font-weight: bold;
+      margin: 0;
+      color: #fff;
+    }
+
+    .btn-leave {
+      background-color: #e53935;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #calendar-container {
+      flex: 1;
+      background-color: var(--card-bg);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      padding: 4px;
+      overflow: hidden;
+    }
+
+    .fc {
+      height: 100% !important;
+      font-size: 0.75rem;
+      --fc-border-color: #2c2c2c;
+      --fc-page-bg-color: #1e1e1e;
+      --fc-neutral-bg-color: #121212;
+    }
+
+    .fc .fc-toolbar { margin-bottom: 4px !important; }
+    .fc .fc-toolbar-title { font-size: 0.95rem !important; font-weight: bold; }
+    .fc .fc-button { padding: 2px 6px !important; font-size: 0.75rem !important; }
+
+    .fc-col-header-cell-cushion, .fc-daygrid-day-number {
+      color: #a0a0a0;
+      text-decoration: none;
+      padding: 2px !important;
+      font-size: 0.7rem;
+    }
+
+    .fc-daygrid-day-frame { min-height: 0 !important; }
+
+    .fc-event {
+      border: none !important;
+      border-radius: 2px !important;
+      font-size: 0.65rem !important;
+      line-height: 1.1 !important;
+      padding: 1px 2px !important;
+      margin-bottom: 1px !important;
+    }
+
+    .fc-daygrid-more-link {
+      font-size: 0.65rem !important;
+      color: #3b82f6 !important;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0,0,0,0.8);
+      justify-content: center;
+      align-items: center;
+      z-index: 9999;
+    }
+
+    .modal-content {
+      background: #252525;
+      padding: 16px;
+      border-radius: 8px;
+      width: 85%;
+      max-width: 320px;
+      color: white;
+    }
+
+    .modal-content input, .modal-content select {
+      width: 100%;
+      padding: 8px;
+      margin: 6px 0 12px 0;
+      border-radius: 4px;
+      border: 1px solid #444;
+      background: #333;
+      color: white;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <div class="header-bar">
+      <h3 class="header-title">ตารางเวร & วันลาแพทย์</h3>
+      <button class="btn-leave" onclick="openModal()">+ แจ้งลา</button>
+    </div>
+
+    <div id="calendar-container">
+      <div id="calendar"></div>
+    </div>
+  </div>
+
+  <!-- Modal แจ้งลา -->
+  <div id="leaveModal" class="modal">
+    <div class="modal-content">
+      <h4 style="margin-top:0; margin-bottom:12px;">บันทึกวันลา</h4>
+      <label style="font-size:0.8rem;">ชื่อแพทย์:</label>
+      <select id="docName">
+        <option>ธีรวิทย์</option>
+        <option>เสริมสุข</option>
+        <option>ธีระศักดิ์</option>
+        <option>พูนสวัสดิ์</option>
+        <option>สรวิศ</option>
+        <option>ปัญญา</option>
+      </select>
+
+      <label style="font-size:0.8rem;">วันที่เริ่มลา:</label>
+      <input type="date" id="startDate">
+
+      <label style="font-size:0.8rem;">วันที่สิ้นสุด:</label>
+      <input type="date" id="endDate">
+
+      <div style="display:flex; justify-content:flex-end; gap:8px;">
+        <button onclick="closeModal()" style="padding:6px 12px; background:#555; color:white; border:none; border-radius:4px; font-size:0.8rem;">ยกเลิก</button>
+        <button onclick="saveLeave()" style="padding:6px 12px; background:#e53935; color:white; border:none; border-radius:4px; font-size:0.8rem;">บันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let calendar;
+
+    // 1. ตารางการแมปสีประจำตัวแพทย์ทุกคน
+    const doctorColors = {
+      "ธีรวิทย์": "#3B82F6",    // สีฟ้า
+      "เสริมสุข": "#10B981",    // สีเขียว
+      "ธีระศักดิ์": "#F97316",  // สีส้ม
+      "พูนสวัสดิ์": "#A855F7",  // สีม่วง
+      "สรวิศ": "#14B8A6",     // สีเขียวมิ้นต์
+      "ปัญญา": "#EC4899"      // สีชมพู
+    };
+
+    // ฟังก์ชั่นค้นหาว่าชื่อหมอตรงกับสีอะไร
+    function getDocColor(text) {
+      for (let name in doctorColors) {
+        if (text.includes(name)) return doctorColors[name];
+      }
+      return "#6B7280"; // สีเทากรณีไม่พบชื่อ
+    }
+
+    const rotaData = [
+      { start: "2026-08-03", end: "2026-08-17", wardCh: "เสริมสุข EP", cath1: "ธีระศักดิ์ Intervention", wardY: "พูนสวัสดิ์ Intervention", cath2: "สรวิศ / ปัญญา", consult: "ธีรวิทย์" },
+      { start: "2026-08-17", end: "2026-08-31", wardCh: "ธีรวิทย์", cath1: "เสริมสุข EP/ปัญญา", wardY: "ธีระศักดิ์ Intervention", cath2: "พูนสวัสดิ์ Intervention", consult: "สรวิศ" },
+      { start: "2026-08-31", end: "2026-09-14", wardCh: "สรวิศ", cath1: "ธีรวิทย์/ปัญญา", wardY: "เสริมสุข EP", cath2: "ธีระศักดิ์ Intervention", consult: "พูนสวัสดิ์ Intervention" },
+      { start: "2026-09-14", end: "2026-09-28", wardCh: "ธีระศักดิ์ Intervention", cath1: "พูนสวัสดิ์ Intervention", wardY: "ธีรวิทย์", cath2: "เสริมสุข EP/ปัญญา", consult: "สรวิศ" },
+      { start: "2026-09-28", end: "2026-10-12", wardCh: "สรวิศ", cath1: "ธีระศักดิ์ Intervention", wardY: "พูนสวัสดิ์ Intervention", cath2: "ธีรวิทย์", consult: "เสริมสุข EP" },
+      { start: "2026-10-12", end: "2026-10-26", wardCh: "เสริมสุข EP", cath1: "สรวิศ", wardY: "ธีระศักดิ์ Intervention", cath2: "พูนสวัสดิ์ Intervention", consult: "ธีรวิทย์" },
+      { start: "2026-10-26", end: "2026-11-09", wardCh: "ธีรวิทย์", cath1: "เสริมสุข EP", wardY: "สรวิศ", cath2: "ธีระศักดิ์ Intervention", consult: "พูนสวัสดิ์ Intervention" },
+      { start: "2026-11-09", end: "2026-11-23", wardCh: "ธีระศักดิ์ Intervention", cath1: "ธีรวิทย์", wardY: "เสริมสุข EP", cath2: "พูนสวัสดิ์ Intervention", consult: "สรวิศ" },
+      { start: "2026-11-23", end: "2026-12-07", wardCh: "พูนสวัสดิ์ Intervention", cath1: "ธีระศักดิ์ Intervention", wardY: "ธีรวิทย์", cath2: "เสริมสุข EP", consult: "สรวิศ" },
+      { start: "2026-12-07", end: "2026-12-21", wardCh: "สรวิศ", cath1: "พูนสวัสดิ์ Intervention", wardY: "ธีระศักดิ์ Intervention", cath2: "ธีรวิทย์", consult: "เสริมสุข EP" },
+      { start: "2026-12-21", end: "2027-01-04", wardCh: "เสริมสุข EP", cath1: "สรวิศ", wardY: "พูนสวัสดิ์ Intervention", cath2: "ธีระศักดิ์ Intervention", consult: "ธีรวิทย์" },
+      { start: "2027-01-04", end: "2027-01-18", wardCh: "ธีรวิทย์", cath1: "เสริมสุข EP", wardY: "ธีระศักดิ์ Intervention", cath2: "พูนสวัสดิ์ Intervention", consult: "สรวิศ" },
+      { start: "2027-01-18", end: "2027-02-01", wardCh: "สรวิศ", cath1: "ธีรวิทย์", wardY: "เสริมสุข EP", cath2: "ธีระศักดิ์ Intervention", consult: "พูนสวัสดิ์ Intervention" },
+      { start: "2027-02-01", end: "2027-02-15", wardCh: "ธีระศักดิ์ Intervention", cath1: "พูนสวัสดิ์ Intervention", wardY: "ธีรวิทย์", cath2: "เสริมสุข EP", consult: "สรวิศ" },
+      { start: "2027-02-15", end: "2027-03-01", wardCh: "สรวิศ", cath1: "ธีระศักดิ์ Intervention", wardY: "พูนสวัสดิ์ Intervention", cath2: "ธีรวิทย์", consult: "เสริมสุข EP" },
+      { start: "2027-03-01", end: "2027-03-15", wardCh: "เสริมสุข EP", cath1: "สรวิศ", wardY: "ธีระศักดิ์ Intervention", cath2: "พูนสวัสดิ์ Intervention", consult: "ธีรวิทย์" },
+      { start: "2027-03-15", end: "2027-03-29", wardCh: "ธีรวิทย์", cath1: "เสริมสุข EP", wardY: "สรวิศ", cath2: "ธีระศักดิ์ Intervention", consult: "พูนสวัสดิ์ Intervention" },
+      { start: "2027-03-29", end: "2027-04-12", wardCh: "ธีระศักดิ์ Intervention", cath1: "ธีรวิทย์", wardY: "เสริมสุข EP", cath2: "พูนสวัสดิ์ Intervention", consult: "สรวิศ" },
+      { start: "2027-04-12", end: "2027-04-26", wardCh: "พูนสวัสดิ์ Intervention", cath1: "ธีระศักดิ์ Intervention", wardY: "ธีรวิทย์", cath2: "เสริมสุข EP", consult: "สรวิศ" },
+      { start: "2027-04-26", end: "2027-05-10", wardCh: "สรวิศ", cath1: "พูนสวัสดิ์ Intervention", wardY: "ธีระศักดิ์ Intervention", cath2: "ธีรวิทย์", consult: "เสริมสุข EP" },
+      { start: "2027-05-10", end: "2027-05-24", wardCh: "เสริมสุข EP", cath1: "สรวิศ", wardY: "พูนสวัสดิ์ Intervention", cath2: "ธีระศักดิ์ Intervention", consult: "ธีรวิทย์" },
+      { start: "2027-05-24", end: "2027-06-07", wardCh: "ธีรวิทย์", cath1: "เสริมสุข EP", wardY: "ธีระศักดิ์ Intervention", cath2: "พูนสวัสดิ์ Intervention", consult: "สรวิศ" },
+      { start: "2027-06-07", end: "2027-06-21", wardCh: "สรวิศ", cath1: "ธีรวิทย์", wardY: "เสริมสุข EP", cath2: "ธีระศักดิ์ Intervention", consult: "พูนสวัสดิ์ Intervention" },
+      { start: "2027-06-21", end: "2027-07-05", wardCh: "ธีระศักดิ์ Intervention", cath1: "พูนสวัสดิ์ Intervention", wardY: "ธีรวิทย์", cath2: "เสริมสุข EP", consult: "สรวิศ" }
+    ];
+
+    function generateEvents() {
+      let events = [];
+      rotaData.forEach(item => {
+        // ใส่ชื่อหมอนำหน้า หรือกำกับในข้อความพร้อมแมปสีตามหมอ
+        events.push({ title: "Echo/EP: " + item.cath1, start: item.start, end: item.end, backgroundColor: getDocColor(item.cath1), priority: 2 });
+        events.push({ title: "Intervention: " + item.cath2, start: item.start, end: item.end, backgroundColor: getDocColor(item.cath2), priority: 3 });
+        events.push({ title: "Ward ญ: " + item.wardY, start: item.start, end: item.end, backgroundColor: getDocColor(item.wardY), priority: 4 });
+        events.push({ title: "Consult: " + item.consult, start: item.start, end: item.end, backgroundColor: getDocColor(item.consult), priority: 5 });
+        events.push({ title: "Ward ช: " + item.wardCh, start: item.start, end: item.end, backgroundColor: getDocColor(item.wardCh), priority: 6 });
+      });
+
+      // ตัวอย่างวันลา (คงสีแดงสดไว้เสมอ Priority = 1 ดันขึ้นบนสุด)
+      events.push({
+        title: "🔴 [ลา] ธีรวิทย์",
+        start: "2026-09-03",
+        end: "2026-09-05",
+        backgroundColor: "#E53935",
+        priority: 1
+      });
+
+      return events;
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const calendarEl = document.getElementById('calendar');
+      calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        initialDate: '2026-09-01',
+        locale: 'th',
+        height: '100%',
+        dayMaxEvents: true,
+        headerToolbar: {
+          left: 'prev,next today',
+          center: 'title',
+          right: ''
+        },
+        events: generateEvents(),
+        eventOrder: 'priority,title',
+        eventClick: function(info) {
+          alert('รายละเอียด: ' + info.event.title);
+        }
+      });
+      calendar.render();
+    });
+
+    function openModal() { document.getElementById('leaveModal').style.display = 'flex'; }
+    function closeModal() { document.getElementById('leaveModal').style.display = 'none'; }
+
+    function saveLeave() {
+      const name = document.getElementById('docName').value;
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+
+      if(!start || !end) {
+        alert('กรุณาเลือกวันที่เริ่มและสิ้นสุดวันลา');
+        return;
+      }
+
+      let endDateObj = new Date(end);
+      endDateObj.setDate(endDateObj.getDate() + 1);
+      let formattedEnd = endDateObj.toISOString().split('T')[0];
+
+      calendar.addEvent({
+        title: "🔴 [ลา] " + name,
+        start: start,
+        end: formattedEnd,
+        backgroundColor: "#E53935", // วันลาเป็นสีแดงสดเสมอ
+        priority: 1
+      });
+
+      closeModal();
+    }
+  </script>
+</body>
+</html>
